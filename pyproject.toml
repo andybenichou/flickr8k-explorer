@@ -1,0 +1,39 @@
+[project]
+name = "flickr8k-explorer"
+version = "0.1.0"
+description = "Local visualization tool for the Flickr8k computer vision dataset"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "numpy>=1.26",
+    "pillow>=10.4",
+    "pyarrow>=17.0",
+    "huggingface-hub>=0.26",
+    "open-clip-torch>=2.29",
+    "torch>=2.4",
+    "umap-learn>=0.5.7",
+    # umap pulls numba; pin the floor so the resolver cannot fall back to a
+    # llvmlite build that refuses to compile on Python 3.11+.
+    "numba>=0.60",
+    "scikit-learn>=1.5",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
