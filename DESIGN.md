@@ -126,6 +126,33 @@ query currently in the box.
   was left out to keep the scope honest rather than because it is hard: the `Embedder` interface
   already exposes `embed_texts`.
 
+## Measured cost
+
+Everything above is a trade-off claim, so here are the numbers behind it, on an Apple Silicon
+laptop, CPU only, 8,000 images:
+
+| Operation | Cost |
+| --- | --- |
+| Decode + thumbnail + index 8,000 images | 20 s |
+| CLIP ViT-B/32 over 8,000 images | 59 s (~135 images/s) |
+| UMAP + KMeans over 8,000 x 512 | 15 s |
+| API cold start | ~2 s (vectors are mmapped, not loaded) |
+| First semantic query | 3 to 5 s (CLIP text encoder loads once) |
+| Subsequent semantic query | a few ms |
+| Browse page, caption search, stats | a few ms |
+| Embedding matrix on disk | 16 MB |
+
+The exhaustive-search argument rests on that "few ms": an ANN index would take it from imperceptible
+to imperceptible, at the cost of a dependency and a second source of truth.
+
+## An honest artefact
+
+The map shows a small group detached far to the left of the main cloud. It is tempting to treat that
+as a normalisation bug and squash it, and the projection stage does clamp to the 1st and 99th
+percentiles for exactly that reason. What survives the clamp is real: a genuinely isolated region of
+CLIP space. Hiding it would make the map prettier and less true, and the whole point of the view is
+to surface structure a researcher would not otherwise notice.
+
 ## Where this breaks
 
 | Scale | What gives | What to do |
