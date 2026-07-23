@@ -15,6 +15,7 @@ import numpy as np
 from .models import (
     Bucket,
     Caption,
+    ClusterInfo,
     DatasetStats,
     ImageDetail,
     ImageSummary,
@@ -189,6 +190,14 @@ class ImageRepository:
                 id=r["id"], x=r["umap_x"], y=r["umap_y"], cluster=r["cluster"], split=r["split"]
             )
             for r in rows
+        ]
+
+    def clusters(self) -> list[ClusterInfo]:
+        return [
+            ClusterInfo(id=r["id"], label=r["label"], size=r["size"])
+            for r in self.conn.execute(
+                "SELECT id, label, size FROM clusters ORDER BY size DESC"
+            )
         ]
 
     def splits(self) -> list[str]:

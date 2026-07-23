@@ -245,7 +245,68 @@ def compute_projection(conn: sqlite3.Connection, settings: Settings) -> None:
             ],
         )
         set_meta(conn, "has_projection", "1")
-    logger.info("Stored 2D projection with %d clusters", n_clusters)
+
+    _label_clusters(conn, labels)
+    logger.info("Stored 2D projection with %d labelled clusters", n_clusters)
+
+
+def _label_clusters(conn: sqlite3.Connection, labels: np.ndarray) -> None:
+    """Give each cluster a name from the words that are *distinctive* to it.
+
+    Ranking by raw frequency would label almost every cluster "dog man white",
+    because those words dominate the whole dataset. Instead each word is scored by
+    how much more frequent it is inside the cluster than across the corpus (a
+    log-ratio, the same idea as TF-IDF), so the label captures what sets the
+    cluster apart: "bicycle street", "snow skier", "beach ocean".
+    """
+    from collections import Counter
+
+    rows = conn.execute(
+        "SELECT i.row_index, c.text FROM images i "
+        "JOIN captions c ON c.image_id = i.id"
+    ).fetchall()
+
+    global_counts: Counter[str] = Counter()
+    cluster_counts: dict[int, Counter[str]] = {}
+    cluster_sizes: Counter[int] = Counter()
+    for row in rows:
+        cluster = int(labels[row["row_index"]])
+        words = {
+            w
+            for w in WORD_RE.findall(row["text"].lower())
+            if w not in _LABEL_STOPWORDS and len(w) > 2 and not w.isdigit()
+        }
+        global_counts.update(words)
+        cluster_counts.setdefault(cluster, Counter()).update(words)
+    for cluster in range(len(set(labels.tolist()))):
+        cluster_sizes[cluster] = int((labels == cluster).sum())
+
+    total_docs = len(rows)
+    records = []
+    for cluster in sorted(cluster_counts):
+        counts = cluster_counts[cluster]
+        size = cluster_sizes[cluster] or 1
+        scored = []
+        for word, count in counts.items():
+            if count < 3:  # ignore words that barely appear in the cluster
+                continue
+            in_cluster = count / size
+            in_corpus = global_counts[word] / total_docs
+            scored.append((in_cluster * np.log(in_cluster / in_corpus + 1e-9), word))
+        scored.sort(reverse=True)
+        label = ", ".join(word for _, word in scored[:3]) or f"cluster {cluster}"
+        records.append((cluster, label, cluster_sizes[cluster]))
+
+    with transaction(conn):
+        conn.execute("DELETE FROM clusters")
+        conn.executemany(
+            "INSERT INTO clusters(id, label, size) VALUES (?, ?, ?)", records
+        )
+    logger.info("Cluster labels: %s", "; ".join(f"{c}:{lbl}" for c, lbl, _ in records))
+
+
+# Reuse the API's stopword list so the labels and the "top words" panel agree.
+from .app.repository import STOPWORDS as _LABEL_STOPWORDS  # noqa: E402
 
 
 # --------------------------------------------------------------------------

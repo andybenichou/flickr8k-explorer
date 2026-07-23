@@ -147,8 +147,8 @@ def register_routes(app: FastAPI) -> None:
     @app.get("/api/projection", response_model=Projection)
     def projection(split: str | None = None, state: AppState = Depends(get_state)) -> Projection:
         points = state.repo.projection(split)
-        n_clusters = len({p.cluster for p in points if p.cluster is not None})
-        return Projection(points=points, n_clusters=n_clusters)
+        clusters = state.repo.clusters()
+        return Projection(points=points, n_clusters=len(clusters), clusters=clusters)
 
     @app.get("/api/stats", response_model=DatasetStats)
     def stats(state: AppState = Depends(get_state)) -> DatasetStats:

@@ -410,25 +410,101 @@ code {
   display: block;
 }
 
-.map__tooltip span {
+.map__tooltip-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.map__tooltip-id {
   display: block;
-  margin-top: 4px;
-  font-size: 11px;
+  margin-top: 2px;
+  font-size: 10px;
   color: var(--text-dim);
 }
 
-.map__legend {
+.map__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+/* Explanatory panel + interactive cluster legend, top-left over the canvas. */
+.map__panel {
   position: absolute;
-  left: 0;
-  bottom: 0;
+  left: 12px;
+  top: 12px;
+  width: 250px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  background: rgba(15, 17, 21, 0.85);
+  gap: 6px;
+  padding: 12px;
+  background: rgba(15, 17, 21, 0.9);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  font-size: 11px;
+  backdrop-filter: blur(4px);
+}
+
+.map__panel strong {
+  font-size: 13px;
+}
+
+.map__help {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.map__help--accent {
+  color: var(--accent, #7dd3fc);
+}
+
+.map__legend {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.map__legend-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 5px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  cursor: default;
+  transition: background 0.1s;
+}
+
+.map__legend-row:hover,
+.map__legend-row--active {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+}
+
+.map__legend-name {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map__legend-count {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
   color: var(--text-dim);
 }
 

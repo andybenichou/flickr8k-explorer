@@ -40,6 +40,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS captions_fts USING fts5(
     tokenize = 'porter unicode61'
 );
 
+CREATE TABLE IF NOT EXISTS clusters (
+    id      INTEGER PRIMARY KEY,   -- KMeans label
+    label   TEXT NOT NULL,         -- human-readable, from distinctive caption words
+    size    INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL

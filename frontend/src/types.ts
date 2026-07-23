@@ -52,9 +52,16 @@ export interface ProjectionPoint {
   split: string
 }
 
+export interface ClusterInfo {
+  id: number
+  label: string
+  size: number
+}
+
 export interface Projection {
   points: ProjectionPoint[]
   n_clusters: number
+  clusters: ClusterInfo[]
 }
 
 export interface Bucket {

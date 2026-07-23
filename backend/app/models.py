@@ -59,9 +59,16 @@ class ProjectionPoint(BaseModel):
     split: str
 
 
+class ClusterInfo(BaseModel):
+    id: int
+    label: str = Field(description="Distinctive caption words, e.g. 'snow, skier, slope'")
+    size: int
+
+
 class Projection(BaseModel):
     points: list[ProjectionPoint]
     n_clusters: int
+    clusters: list[ClusterInfo]
 
 
 class Bucket(BaseModel):
