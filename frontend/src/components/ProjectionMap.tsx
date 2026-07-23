@@ -29,7 +29,12 @@ const TIP_W = 176
 const TIP_H = 190
 
 export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  // The canvas and its container are held as state, not refs, because the first
+  // load returns from the loading branch below before either node exists. State
+  // re-runs the effects that draw and that attach the observer/listeners once the
+  // nodes are mounted, where a ref mutation would leave them attached to nothing.
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null)
+  const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [size, setSize] = useState({ width: 800, height: 600 })
   const [hovered, setHovered] = useState<{ point: ProjectionPoint; x: number; y: number } | null>(null)
   // Set by hovering a legend row: isolates one cluster so its shape stands out.
@@ -82,20 +87,20 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     if (w > 0 && w <= 640) setPanelOpen(false)
   }, [])
 
-  // Track the container size so the map fills the available space. Keyed on
-  // points.length like the wheel handler below: on first mount the loading
-  // branch returns before the canvas exists, so the observer must (re)attach
-  // once data arrives and the canvas is in the DOM, otherwise the map stays
-  // stuck at its default 800x600 and overflows a narrow (phone) viewport.
+  // Track the container size so the map fills the available space. Keyed on the
+  // container node itself, so it observes the node as soon as it mounts. Zero
+  // measurements are ignored: a detached node and a display:none one (this view
+  // while another tab is showing) both report 0x0, and adopting that would size the
+  // canvas to nothing and blank the map with no later resize to recover from.
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas?.parentElement) return
+    if (!container) return
     const observer = new ResizeObserver(([entry]) => {
-      setSize({ width: entry.contentRect.width, height: entry.contentRect.height })
+      const { width, height } = entry.contentRect
+      if (width > 0 && height > 0) setSize({ width, height })
     })
-    observer.observe(canvas.parentElement)
+    observer.observe(container)
     return () => observer.disconnect()
-  }, [points.length])
+  }, [container])
 
   // Data coordinates -> base canvas pixels (before pan/zoom).
   const toBase = useMemo(() => {
@@ -116,7 +121,6 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
   }, [toBase, view])
 
   useEffect(() => {
-    const canvas = canvasRef.current
     if (!canvas) return
     const ratio = window.devicePixelRatio || 1
     canvas.width = size.width * ratio
@@ -168,12 +172,13 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
       ctx.stroke()
     }
     ctx.globalAlpha = 1
-  }, [points, size, toPixel, focus, selectedId, view, kbFocusId])
+    // `canvas` is a dependency so the freshly mounted, still-blank canvas is drawn
+    // on the render where it appears, without waiting for a data or viewport change.
+  }, [canvas, points, size, toPixel, focus, selectedId, view, kbFocusId])
 
   // Wheel zoom, centred on the cursor so the point under it stays put. Attached
   // manually because React's onWheel is passive and cannot preventDefault.
   useEffect(() => {
-    const canvas = canvasRef.current
     if (!canvas) return
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
@@ -189,9 +194,9 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     }
     canvas.addEventListener('wheel', onWheel, { passive: false })
     return () => canvas.removeEventListener('wheel', onWheel)
-    // Re-run once points arrive: on the first mount the canvas does not exist yet
-    // (the loading branch returns early), so the listener must attach after data.
-  }, [points.length])
+    // Keyed on the node: the first load returns from the loading branch before the
+    // canvas exists, so the listener has to attach once it is actually mounted.
+  }, [canvas])
 
   const resetView = () => setView({ k: 1, x: 0, y: 0 })
 
@@ -262,7 +267,6 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
 
   /** Nearest point to the cursor, within a small radius. 8k points is a cheap scan. */
   function nearest(clientX: number, clientY: number) {
-    const canvas = canvasRef.current
     if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
     const mx = clientX - rect.left
@@ -282,7 +286,10 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     return best ? { point: best, x: mx, y: my } : null
   }
 
-  if (projection.loading) return <Spinner block label="Loading projection…" />
+  // Only the very first load blanks the view: a later split change keeps the
+  // current map in place under a scrim (see `.map__loading` below), so the pane
+  // never collapses to a centred spinner and back.
+  if (projection.loading && !projection.data) return <Spinner block label="Loading projection…" />
   if (projection.error) return <p className="notice notice--error" role="alert">{projection.error}</p>
   if (points.length === 0)
     return (
@@ -292,9 +299,9 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     )
 
   return (
-    <div className="map">
+    <div className="map" ref={setContainer}>
       <canvas
-        ref={canvasRef}
+        ref={setCanvas}
         // Focusable interactive widget: role="application" so a screen reader
         // passes the arrow/Enter keys through to our handler instead of eating
         // them for its own navigation. Live updates go to the region below.
@@ -307,7 +314,11 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
             if (start) setKbFocusId(start.id)
           }
         }}
+        aria-busy={projection.loading || undefined}
         onKeyDown={(event) => {
+          // The scrim blocks the pointer; the keyboard needs the same guard so
+          // Enter cannot open a point from the split being replaced.
+          if (projection.loading) return
           switch (event.key) {
             case 'ArrowRight': event.preventDefault(); stepFocus('right'); break
             case 'ArrowLeft': event.preventDefault(); stepFocus('left'); break
@@ -359,7 +370,6 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
             const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
             const prev = state.distance || distance
             state.distance = distance
-            const canvas = canvasRef.current
             if (!canvas) return
             const rect = canvas.getBoundingClientRect()
             // Zoom centred on the midpoint between the two fingers.
@@ -439,7 +449,7 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
           : ''}
       </div>
 
-      {hovered && (
+      {hovered && !projection.loading && (
         <div
           className="map__tooltip"
           style={{
@@ -534,6 +544,14 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
           ))}
         </ul>
       </div>
+
+      {/* Covers the whole map while the next split loads: the points underneath
+          belong to the previous split, so they must not be clickable. */}
+      {projection.loading && (
+        <div className="map__loading">
+          <Spinner label="Loading projection…" />
+        </div>
+      )}
     </div>
   )
 }

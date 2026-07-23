@@ -623,6 +623,20 @@ code {
   display: block;
 }
 
+/* Scrim shown while a new split loads, on top of the previous map: swapping the
+   whole view for a centred spinner made the map blink out on every split change.
+   It sits above the tooltip and the legend panel and swallows their clicks. */
+.map__loading {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  cursor: progress;
+}
+
 .map__tooltip {
   position: absolute;
   pointer-events: none;

@@ -55,7 +55,9 @@ export function useGallery(query: string, mode: SearchMode, split: string | unde
   const requestId = useRef(0)
 
   const trimmed = query.trim()
-  const key = `${trimmed}|${mode}|${split}`
+  // The mode only ranks a search; while browsing it changes nothing, so it stays
+  // out of the key and toggling it does not refetch the same page.
+  const key = trimmed ? `${trimmed}|${mode}|${split}` : `|${split}`
   const prevKey = useRef(key)
 
   useEffect(() => {
@@ -64,12 +66,9 @@ export function useGallery(query: string, mode: SearchMode, split: string | unde
     // offset-0 run does the actual fetch, so exactly one request fires per change.
     if (prevKey.current !== key) {
       prevKey.current = key
-      setItems([])
-      setTotal(0)
       if (offset !== 0) {
         // Enter the loading state now: resetting the offset re-runs this effect,
-        // but until it does the render has empty items and stale loading:false,
-        // which would briefly flash the "no results" empty state.
+        // but until it does the render still has stale loading:false.
         setLoading(true)
         setError(null)
         setOffset(0)
@@ -82,6 +81,8 @@ export function useGallery(query: string, mode: SearchMode, split: string | unde
     setLoading(true)
     setError(null)
 
+    // The previous items stay on screen until the new ones land: emptying the
+    // list collapses the grid, and the scroll container jumps back to the top.
     const request = trimmed
       ? api.search({ q: trimmed, mode, split }).then((r) => ({ items: r.items, total: r.total }))
       : api
@@ -101,7 +102,9 @@ export function useGallery(query: string, mode: SearchMode, split: string | unde
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trimmed, mode, split, offset])
+    // `key` covers the query, mode and split, so a mode toggle while browsing
+    // (where it is not part of the key) does not re-fire the same request.
+  }, [key, offset])
 
   const loadMore = useCallback(() => {
     setOffset((previous) => previous + PAGE_SIZE)

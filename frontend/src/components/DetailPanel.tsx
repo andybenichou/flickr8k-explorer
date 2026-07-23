@@ -102,7 +102,10 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
       </header>
 
       {detail.error && <p className="notice notice--error" role="alert">{detail.error}</p>}
-      {detail.loading && <Spinner block />}
+      {/* Only while nothing is displayed yet: on a neighbour click the previous
+          image is still on screen, and inserting a spinner above it would push
+          the whole panel down. */}
+      {detail.loading && !detail.data && <Spinner block />}
       {detail.data && (
         <>
           <div className="detail__image">
@@ -169,7 +172,7 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
           </p>
           {similar.error ? (
             <p className="notice notice--error" role="alert">{similar.error}</p>
-          ) : similar.loading ? (
+          ) : similar.loading && !similar.data ? (
             <Spinner />
           ) : (
             <div className="detail__similar">
