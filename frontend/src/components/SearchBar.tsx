@@ -11,6 +11,8 @@ interface Props {
   semanticAvailable: boolean
   resultCount: number
   ranked: boolean
+  /** The typed query has not been searched yet, so the count is stale. */
+  pending: boolean
 }
 
 const PLACEHOLDERS: Record<SearchMode, string> = {
@@ -29,6 +31,7 @@ export function SearchBar({
   semanticAvailable,
   resultCount,
   ranked,
+  pending,
 }: Props) {
   return (
     <div className="searchbar">
@@ -81,8 +84,14 @@ export function SearchBar({
         ))}
       </select>
 
-      <span className="searchbar__count">
-        {ranked ? `${resultCount} ranked` : `${resultCount.toLocaleString()} images`}
+      {/* While a keystroke is still debounced the count belongs to the previous
+          query, so say so rather than showing a number that is about to change. */}
+      <span className="searchbar__count" aria-live="polite" aria-busy={pending}>
+        {pending
+          ? 'Searching…'
+          : ranked
+            ? `${resultCount} ranked`
+            : `${resultCount.toLocaleString()} images`}
       </span>
     </div>
   )

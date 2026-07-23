@@ -158,6 +158,9 @@ export default function App() {
           semanticAvailable={semanticAvailable}
           resultCount={gallery.ranked ? gallery.items.length : gallery.total}
           ranked={gallery.ranked}
+          // Also while the request is in flight: until it lands the count still
+          // describes the previous query.
+          pending={searchPending || (gallery.loading && query.trim() !== '')}
         />
       )}
 
