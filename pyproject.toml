@@ -37,3 +37,8 @@ packages = ["backend"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
+filterwarnings = [
+    # Starlette's TestClient warns that a future release will require httpx2.
+    # It comes from the framework, not our code, and does not affect the tests.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
