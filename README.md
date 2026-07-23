@@ -10,7 +10,8 @@ Everything runs on one machine. No cloud services, no managed database, no paid 
 
 ## TL;DR for the reviewer
 
-Five commands. About 12 minutes total, most of it downloads that only happen once.
+Six commands (the first installs uv, and only if you do not have it yet). About 12 minutes total,
+most of it downloads that only happen once.
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # once, if you do not have uv (see Requirements)
