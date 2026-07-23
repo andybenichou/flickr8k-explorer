@@ -195,7 +195,79 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     <div className="map">
       <canvas
         ref={canvasRef}
-        style={{ width: size.width, height: size.height, cursor: dragging ? 'grabbing' : 'crosshair' }}
+        // touchAction:'none' stops the browser hijacking the gesture for page
+        // scroll/zoom, so our own touch handlers own every finger on the canvas.
+        style={{ width: size.width, height: size.height, cursor: dragging ? 'grabbing' : 'crosshair', touchAction: 'none' }}
+        onTouchStart={(event) => {
+          // Touch has no hover, so never leave a stale tooltip on screen.
+          setHovered(null)
+          if (event.touches.length === 1) {
+            const t = event.touches[0]
+            touch.current = { mode: 'pan', x: t.clientX, y: t.clientY, moved: false, distance: 0 }
+          } else if (event.touches.length >= 2) {
+            const [a, b] = [event.touches[0], event.touches[1]]
+            const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+            // moved:true so lifting out of a pinch never counts as a tap-select.
+            touch.current = { mode: 'pinch', x: 0, y: 0, moved: true, distance }
+          }
+        }}
+        onTouchMove={(event) => {
+          const state = touch.current
+          if (!state) return
+          if (state.mode === 'pan' && event.touches.length === 1) {
+            // Same delta-translate math as the mouse drag.
+            const t = event.touches[0]
+            const dx = t.clientX - state.x
+            const dy = t.clientY - state.y
+            if (Math.abs(dx) + Math.abs(dy) > 2) state.moved = true
+            state.x = t.clientX
+            state.y = t.clientY
+            setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }))
+          } else if (state.mode === 'pinch' && event.touches.length >= 2) {
+            const [a, b] = [event.touches[0], event.touches[1]]
+            const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+            const prev = state.distance || distance
+            state.distance = distance
+            const canvas = canvasRef.current
+            if (!canvas) return
+            const rect = canvas.getBoundingClientRect()
+            // Zoom centred on the midpoint between the two fingers.
+            const mx = (a.clientX + b.clientX) / 2 - rect.left
+            const my = (a.clientY + b.clientY) / 2 - rect.top
+            setView((v) => {
+              const k = Math.min(20, Math.max(1, v.k * (distance / prev)))
+              const ratio = k / v.k
+              // Keep the focal point anchored, exactly like the wheel handler.
+              return { k, x: mx - (mx - v.x) * ratio, y: my - (my - v.y) * ratio }
+            })
+          }
+        }}
+        onTouchEnd={(event) => {
+          const state = touch.current
+          const remaining = event.touches.length
+          // A one-finger tap that did not move selects the nearest point, and a
+          // quick second tap resets the view (double-tap).
+          if (state && state.mode === 'pan' && remaining === 0 && !state.moved) {
+            const t = event.changedTouches[0]
+            const now = Date.now()
+            if (now - lastTap.current < 300) {
+              resetView()
+              lastTap.current = 0
+            } else {
+              lastTap.current = now
+              const hit = nearest(t.clientX, t.clientY)
+              if (hit) onSelect(hit.point.id)
+            }
+          }
+          if (remaining === 0) {
+            touch.current = null
+          } else if (remaining === 1) {
+            // Lifting one finger out of a pinch: continue as a pan, but with
+            // moved:true so releasing the last finger does not select a point.
+            const t = event.touches[0]
+            touch.current = { mode: 'pan', x: t.clientX, y: t.clientY, moved: true, distance: 0 }
+          }
+        }}
         onMouseDown={(event) => {
           drag.current = { x: event.clientX, y: event.clientY, moved: false }
           setDragging(true)
@@ -257,8 +329,16 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
         </div>
       )}
 
-      <div className="map__panel">
+      <div className={'map__panel' + (panelOpen ? '' : ' map__panel--collapsed')}>
         <strong>Map of the dataset in CLIP's eyes</strong>
+        <button
+          type="button"
+          className="map__panel-toggle"
+          onClick={() => setPanelOpen((open) => !open)}
+          aria-expanded={panelOpen}
+        >
+          {panelOpen ? 'Hide' : 'Show'}
+        </button>
         <p className="map__help">
           Each dot is one image, placed by UMAP so that images CLIP finds visually
           similar sit close together. What matters is <em>proximity</em>, not the
@@ -291,7 +371,10 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
                 'map__legend-row' +
                 (activeCluster === cluster.id ? ' map__legend-row--active' : '')
               }
+              style={{ cursor: 'pointer' }}
               onMouseEnter={() => setActiveCluster(cluster.id)}
+              // Tap to isolate on touch (no hover); tap again to clear.
+              onClick={() => setActiveCluster((c) => (c === cluster.id ? null : cluster.id))}
             >
               <span className="map__swatch" style={{ background: colorFor(cluster.id) }} />
               <span className="map__legend-name">{cluster.label}</span>
