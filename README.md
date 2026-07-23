@@ -255,6 +255,31 @@ retry; uv manages the interpreter, your system Python is not used.
 
 What this tool is for, why it is built this way, and where the design would break.
 
+The layering, top to bottom, with the two seams that were drawn where a substitution is plausible
+(`Embedder` and `repository.py`):
+
+```mermaid
+flowchart TB
+  FE["frontend · React + Vite<br/>grid · search · detail · map · stats"]
+  API["api.py — FastAPI routes<br/>validation, status codes, no logic"]
+  SVC["services.py<br/>app state, search orchestration, lazy model load"]
+  REPO["repository.py<br/>every SQL statement"]
+  EMB["embeddings.py<br/>Embedder protocol · CLIP · VectorIndex"]
+  DB[("app.db — SQLite<br/>images · captions · FTS5 · projection")]
+  NPY[("vectors.npy<br/>float32 8k×512, mmap")]
+  CLIP{{"CLIP ViT-B/32 on PyTorch<br/>loaded on first query"}}
+
+  FE -->|HTTP / JSON| API --> SVC
+  SVC --> REPO
+  SVC --> EMB
+  REPO --> DB
+  EMB --> NPY
+  EMB --> CLIP
+
+  classDef seam stroke:#128a99,stroke-width:2px;
+  class REPO,EMB seam;
+```
+
 ### What a dataset tool has to answer
 
 Flickr8k is an image-captioning dataset: 8,000 photos, five human captions each. A researcher
@@ -282,6 +307,14 @@ One artefact, three capabilities. The alternative (keyword search, a perceptual 
 a separate feature extractor for the map) would be more code, three things to keep consistent, and
 strictly less useful.
 
+```mermaid
+flowchart LR
+  V[("CLIP vectors<br/>8,000 × 512")]
+  V --> S["semantic search<br/>text embedding vs images"]
+  V --> N["nearest neighbours<br/>duplicates & over-represented scenes"]
+  V --> M["the map<br/>UMAP projection, searchable"]
+```
+
 ViT-B/32 was picked over a larger CLIP because it embeds the full dataset in about a minute on a
 laptop CPU. Retrieval quality on 8k photos of everyday scenes is not the bottleneck here; the
 setup time a reviewer has to sit through is. `F8K_CLIP_MODEL` swaps it in one command.
@@ -307,6 +340,19 @@ The same reasoning applies to filtering. Rather than encoding metadata into the 
 search passes the matching row indices as `candidates` and the scan runs over that subset. Metadata
 filters and semantic ranking compose without either side knowing about the other.
 
+```mermaid
+flowchart TB
+  Q["/api/search?q=…&split=test"] --> F{"split filter?"}
+  F -->|yes| CAND["repository.row_indices_for_split(split)<br/>→ candidates"]
+  F -->|no| ALL["candidates = None<br/>(full scan)"]
+  Q --> ENC["embedder().embed_texts([q])<br/>→ 512-d vector"]
+  CAND --> SCAN["vectors[candidates] @ query"]
+  ALL --> SCAN
+  ENC --> SCAN
+  SCAN --> TOPK["argpartition → argsort<br/>top-k (row_index, score)"]
+  TOPK --> HYD["repository.summaries_by_row_index<br/>→ frontend"]
+```
+
 ### Precompute at ingestion, serve from SQL
 
 UMAP and KMeans run once during ingestion and their output is written back into the `images` table.
@@ -319,12 +365,38 @@ one that saturates the connection.
 
 The one deliberate exception is the CLIP text encoder, loaded lazily on the first semantic query.
 Browsing, caption search and stats therefore work on a cold start, and a reviewer who never runs a
-semantic query never waits for the model.
+semantic query never waits for the model. Loading happens once per process, under a lock so
+concurrent requests do not load it twice:
+
+```mermaid
+sequenceDiagram
+  participant U as Request
+  participant S as AppState
+  participant C as ClipEmbedder
+  Note over S: uvicorn start — SQLite + vectors.npy ready, _embedder = None
+  U->>S: browse / text search / stats / map
+  S-->>U: served cold, no model
+  U->>S: first semantic query
+  S->>S: acquire lock (_embedder is None)
+  S->>C: load CLIP (3–5 s, once per process)
+  C-->>S: embedder ready
+  S-->>U: results (~ms)
+  U->>S: next semantic query
+  S-->>U: reuses _embedder (~ms)
+```
 
 ### Ingestion as separable stages
 
 `ingest.py` runs four stages: download, decode, embed, project. Each can be run alone via `--only`,
 and `--limit` caps the number of images per split.
+
+```mermaid
+flowchart LR
+  D["download<br/>Parquet shards<br/>(HF cache, 1.0 GB)"] --> C["decode<br/>images + 320px thumbs<br/>→ disk + SQLite rows"]
+  C --> E["embed<br/>one CLIP pass<br/>→ 512-d vector / image"]
+  E --> P["project<br/>UMAP + KMeans<br/>→ 2D coords + clusters"]
+  P --> OUT[("data/ — 1.2 GB<br/>gitignored, rebuilt in ~1.5 min")]
+```
 
 The reason is the failure mode. Embedding is the expensive stage; a crash in UMAP after it should not
 force a re-run. `--limit 200` also makes the whole pipeline verifiable in under a minute, which is
