@@ -16,12 +16,17 @@ const VIEWS: { key: View; label: string; hint: string }[] = [
 
 /** Read the initial UI state from the URL, so a reload or a shared link lands
  *  exactly where the user left off (which view, query, filter, open image). */
+const VIEW_KEYS: View[] = ['grid', 'map', 'stats']
+const MODE_KEYS: SearchMode[] = ['semantic', 'text']
+
 function stateFromUrl() {
   const p = new URLSearchParams(window.location.search)
+  const view = p.get('view') as View
+  const mode = p.get('mode') as SearchMode
   return {
-    view: (p.get('view') as View) || 'grid',
+    view: VIEW_KEYS.includes(view) ? view : 'grid',
     query: p.get('q') ?? '',
-    mode: (p.get('mode') as SearchMode) || 'semantic',
+    mode: MODE_KEYS.includes(mode) ? mode : 'semantic',
     split: p.get('split') ?? '',
     selectedId: p.get('sel'),
   }
@@ -70,6 +75,12 @@ export default function App() {
 
   const dataset = useAsync<DatasetInfo>(() => api.dataset(), [])
   const semanticAvailable = Boolean(dataset.data?.embedding_model)
+
+  // Fall back to text search on a backend without embeddings, so we never fire
+  // a semantic query the server cannot answer.
+  useEffect(() => {
+    if (!semanticAvailable && mode === 'semantic') setMode('text')
+  }, [semanticAvailable, mode])
 
   // Debounced so typing does not fire a CLIP query per keystroke.
   const debouncedQuery = useDebounced(query)

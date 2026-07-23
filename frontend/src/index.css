@@ -22,6 +22,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  /* Backstop against horizontal page scroll on narrow screens; the responsive
+     rules below are what actually keep content inside the viewport. */
+  overflow-x: hidden;
 }
 
 button,
@@ -42,6 +45,9 @@ code {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* dvh tracks the shrinking viewport under mobile browser chrome; the 100vh
+     line above stays as a fallback for engines without dvh support. */
+  height: 100dvh;
 }
 
 /* --- top bar ------------------------------------------------------- */
@@ -80,6 +86,7 @@ code {
   padding: 7px 14px;
   cursor: pointer;
   color: var(--text-dim);
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
 .segmented button:hover:not(:disabled) {
@@ -119,6 +126,7 @@ code {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  transition: border-color 0.12s ease;
 }
 
 .searchbar input:focus {
@@ -202,10 +210,13 @@ code {
   cursor: pointer;
   overflow: hidden;
   text-align: left;
+  transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .card:hover {
   border-color: var(--text-dim);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .card--selected {
@@ -326,6 +337,7 @@ code {
   border-radius: 5px;
   text-decoration: none;
   backdrop-filter: blur(3px);
+  transition: border-color 0.12s ease;
 }
 
 .detail__open:hover {
@@ -396,6 +408,7 @@ code {
   background: none;
   cursor: pointer;
   overflow: hidden;
+  transition: border-color 0.12s ease;
 }
 
 .detail__similar button:hover {
@@ -525,7 +538,7 @@ code {
   font-size: 11.5px;
   color: var(--text-dim);
   cursor: default;
-  transition: background 0.1s;
+  transition: background 0.1s, color 0.1s;
 }
 
 .map__legend-row:hover,
@@ -558,10 +571,37 @@ code {
   border: 1px solid var(--border);
   border-radius: 5px;
   cursor: pointer;
+  transition: border-color 0.12s ease;
 }
 
 .map__reset:hover {
   border-color: var(--text-dim);
+}
+
+/* Collapse toggle: styled like .map__reset so the panel's two buttons match.
+   ProjectionMap renders it inside the panel; collapsing adds --collapsed. */
+.map__panel-toggle {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 4px 9px;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.map__panel-toggle:hover {
+  border-color: var(--text-dim);
+}
+
+/* Collapsed: keep only the title and the toggle, drop the explanatory prose,
+   the legend and the reset button so the panel stops covering the canvas. */
+.map__panel--collapsed .map__help,
+.map__panel--collapsed .map__legend,
+.map__panel--collapsed .map__reset {
+  display: none;
 }
 
 /* --- stats -------------------------------------------------------------- */
@@ -674,4 +714,84 @@ code {
   font-size: 18px;
   margin-top: 0;
   color: var(--danger);
+}
+
+/* --- mobile ------------------------------------------------------------- */
+
+/* Single phone breakpoint. Everything above is the desktop layout; these rules
+   only reshape it for narrow screens, they do not rewrite the design language. */
+@media (max-width: 640px) {
+  /* Drop the subtitle so the brand + 3-tab nav fit on one row under ~420px. */
+  .topbar {
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .topbar__brand span {
+    display: none;
+  }
+
+  /* Segmented tabs are a primary control on touch: give them a 44px tap target. */
+  .segmented button {
+    padding: 10px 14px;
+    min-height: 44px;
+  }
+
+  /* Search bar wraps: the input takes its own full-width line, and the
+     segmented control + split select + count share the line(s) below it. */
+  .searchbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .searchbar__input {
+    flex: 1 1 100%;
+  }
+
+  /* 16px keeps iOS Safari from auto-zooming the page on focus. */
+  .searchbar input,
+  .searchbar select {
+    font-size: 16px;
+  }
+
+  /* Comfortable tap target for the inline clear button. */
+  .searchbar__clear {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .view-pane {
+    padding: 12px 16px 40px;
+  }
+
+  /* The detail panel is a 380px flex sibling on desktop; on a phone it would
+     crush the grid to nothing, so promote it to a full-screen overlay with its
+     own scroll. Its sticky header (with the × close) rides the overlay top. */
+  .detail {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    /* Above the topbar so the overlay fully covers the app behind it. */
+    z-index: 50;
+    border-left: 0;
+    padding: 0 16px 32px;
+  }
+
+  /* Bigger close target, harmless on the larger overlay header. */
+  .detail__header button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Cap the map panel so it never blankets the whole canvas on a small screen. */
+  .map__panel {
+    width: 200px;
+    max-width: calc(100% - 24px);
+  }
+
+  /* Narrower label + value columns leave the bar itself a usable width. */
+  .chart li {
+    grid-template-columns: 70px 1fr 48px;
+  }
 }

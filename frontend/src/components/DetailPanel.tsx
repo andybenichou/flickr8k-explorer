@@ -85,14 +85,20 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
             Closest images in CLIP space. Near-identical neighbours usually mean duplicates or
             over-represented scenes.
           </p>
-          <div className="detail__similar">
-            {similar.data?.items.map((item) => (
-              <button key={item.id} onClick={() => onSelect(item.id)} title={item.caption}>
-                <img src={item.thumb_url} alt={item.caption} loading="lazy" />
-                <span>{item.score?.toFixed(3)}</span>
-              </button>
-            ))}
-          </div>
+          {similar.error ? (
+            <p className="notice notice--error">{similar.error}</p>
+          ) : similar.loading ? (
+            <p className="notice">Loading…</p>
+          ) : (
+            <div className="detail__similar">
+              {similar.data?.items.map((item) => (
+                <button key={item.id} onClick={() => onSelect(item.id)} title={item.caption}>
+                  <img src={item.thumb_url} alt={item.caption} loading="lazy" />
+                  <span>{item.score?.toFixed(3)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </>
       )}
     </aside>

@@ -22,6 +22,11 @@ const colorFor = (cluster: number | null) =>
 
 const PADDING = 24
 
+// Tooltip dimensions used to clamp it inside the map. TIP_W is the CSS width;
+// TIP_H is a conservative upper bound on its variable height.
+const TIP_W = 176
+const TIP_H = 190
+
 export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [size, setSize] = useState({ width: 800, height: 600 })
@@ -32,6 +37,16 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
   // so zooming in is the only way to reach an individual point.
   const [view, setView] = useState({ k: 1, x: 0, y: 0 })
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  // Boolean mirror of `drag` used only for the cursor: a ref mutation does not
+  // re-render, so without this the 'grabbing' cursor lags one frame.
+  const [dragging, setDragging] = useState(false)
+  // Touch gesture state: one finger pans, two fingers pinch-zoom. `distance` is
+  // the previous finger spread, used to derive the pinch scale ratio per move.
+  const touch = useRef<{ mode: 'pan' | 'pinch'; x: number; y: number; moved: boolean; distance: number } | null>(null)
+  // Timestamp of the last one-finger tap, so a quick second tap resets the view.
+  const lastTap = useRef(0)
+  // Collapsible overlay panel: on a phone it otherwise covers most of the map.
+  const [panelOpen, setPanelOpen] = useState(true)
 
   const projection = useAsync<Projection>(() => api.projection(split || undefined), [split])
   const points = useMemo(() => projection.data?.points ?? [], [projection.data])
@@ -155,6 +170,8 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     let best: ProjectionPoint | null = null
     let bestDistance = 12 * 12
     for (const point of points) {
+      // While a search or cluster is active, dimmed points are not hoverable.
+      if (focus && !focus(point)) continue
       const { x, y } = toPixel(point)
       const distance = (x - mx) ** 2 + (y - my) ** 2
       if (distance < bestDistance) {
@@ -178,9 +195,10 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     <div className="map">
       <canvas
         ref={canvasRef}
-        style={{ width: size.width, height: size.height, cursor: drag.current ? 'grabbing' : 'crosshair' }}
+        style={{ width: size.width, height: size.height, cursor: dragging ? 'grabbing' : 'crosshair' }}
         onMouseDown={(event) => {
           drag.current = { x: event.clientX, y: event.clientY, moved: false }
+          setDragging(true)
         }}
         onMouseMove={(event) => {
           if (drag.current) {
@@ -198,12 +216,14 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
         onMouseUp={(event) => {
           const wasDrag = drag.current?.moved
           drag.current = null
+          setDragging(false)
           if (wasDrag) return // a pan should not also select a point
           const hit = nearest(event.clientX, event.clientY)
           if (hit) onSelect(hit.point.id)
         }}
         onMouseLeave={() => {
           drag.current = null
+          setDragging(false)
           setHovered(null)
         }}
         onDoubleClick={resetView}
@@ -213,11 +233,19 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
         <div
           className="map__tooltip"
           style={{
-            left: Math.min(hovered.x + 14, size.width - 190),
-            top: Math.min(hovered.y + 14, size.height - 190),
+            // TIP_W matches the tooltip's CSS width; TIP_H is a conservative
+            // estimate of its (variable) height so it never spills off an edge.
+            left: Math.min(hovered.x + 14, size.width - TIP_W - 8),
+            top: Math.min(hovered.y + 14, Math.max(8, size.height - TIP_H)),
           }}
         >
-          <img src={`/media/thumbs/${hovered.point.id}.jpg`} alt={hovered.point.id} />
+          <img
+            src={`/media/thumbs/${hovered.point.id}.jpg`}
+            alt={hovered.point.id}
+            onError={(e) => {
+              e.currentTarget.style.visibility = 'hidden'
+            }}
+          />
           <span className="map__tooltip-label">
             <span
               className="map__swatch"

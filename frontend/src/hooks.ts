@@ -55,15 +55,23 @@ export function useGallery(query: string, mode: SearchMode, split: string | unde
   const requestId = useRef(0)
 
   const trimmed = query.trim()
-
-  // Reset whenever the query, mode or split changes.
-  useEffect(() => {
-    setItems([])
-    setOffset(0)
-    setTotal(0)
-  }, [trimmed, mode, split])
+  const key = `${trimmed}|${mode}|${split}`
+  const prevKey = useRef(key)
 
   useEffect(() => {
+    // When the query, mode or split changes, start fresh from offset 0 instead of
+    // fetching with the stale offset. Resetting offset re-runs this effect, and the
+    // offset-0 run does the actual fetch, so exactly one request fires per change.
+    if (prevKey.current !== key) {
+      prevKey.current = key
+      setItems([])
+      setTotal(0)
+      if (offset !== 0) {
+        setOffset(0)
+        return
+      }
+    }
+
     const id = ++requestId.current
     let cancelled = false
     setLoading(true)
