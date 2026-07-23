@@ -18,6 +18,10 @@ from .repository import ImageRepository
 
 logger = logging.getLogger(__name__)
 
+# A one-letter prefix ("a*", "b*") hits most of the corpus and the BM25 ranking
+# stops meaning anything, so the word waits for its second character.
+_MIN_PREFIX_CHARS = 2
+
 
 class DatasetNotIngested(RuntimeError):
     """Raised when the API starts before `python -m backend.ingest` has run."""
@@ -98,6 +102,21 @@ def _sanitize_fts(query: str) -> str:
     ``*`` or ``NEAR`` have syntax meaning and can raise. Each token is stripped to
     its alphanumeric core and quoted, which gives predictable AND-of-terms
     behaviour and removes any chance of a syntax error.
+
+    Results refresh on every keystroke, so the word still being typed matches as a
+    prefix: without it "bla" reports zero results on the way to "black", which
+    reads as an empty dataset rather than an unfinished word. The word is deemed
+    unfinished when the raw query ends on an alphanumeric character, and the ``*``
+    is appended by us, never taken from the input.
     """
-    tokens = ["".join(ch for ch in token if ch.isalnum() or ch == "'") for token in query.split()]
-    return " ".join(f'"{token}"' for token in tokens if token)
+    tokens = [
+        "".join(ch for ch in token if ch.isalnum() or ch == "'") for token in query.split()
+    ]
+    tokens = [token for token in tokens if token]
+    if not tokens:
+        return ""
+    terms = [f'"{token}"' for token in tokens]
+    typing = bool(query) and query[-1].isalnum()
+    if typing and len(tokens[-1]) >= _MIN_PREFIX_CHARS:
+        terms[-1] += "*"
+    return " ".join(terms)

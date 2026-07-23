@@ -63,6 +63,22 @@ def test_text_search_survives_fts_syntax_characters(client):
         assert client.get("/api/search", params={"q": hostile, "mode": "text"}).status_code == 200
 
 
+def test_text_search_prefix_matches_the_word_being_typed(client):
+    # Results refresh per keystroke: "blu" must already reach "blue jacket".
+    typing = client.get("/api/search", params={"q": "blu", "mode": "text"}).json()
+    assert [item["id"] for item in typing["items"]] == ["test-00002"]
+
+    # A trailing space means the word is finished, so it goes back to exact.
+    finished = client.get("/api/search", params={"q": "blu ", "mode": "text"}).json()
+    assert finished["items"] == []
+
+    # Earlier words stay exact even while the last one is still being typed.
+    assert client.get("/api/search", params={"q": "blu jack", "mode": "text"}).json()["items"] == []
+
+    # A single letter would match most of the corpus, so it waits.
+    assert client.get("/api/search", params={"q": "b", "mode": "text"}).json()["items"] == []
+
+
 def test_similar_excludes_the_query_image(client):
     body = client.get("/api/images/train-00000/similar", params={"limit": 3}).json()
     ids = [item["id"] for item in body["items"]]

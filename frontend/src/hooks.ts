@@ -55,9 +55,13 @@ export function useGallery(query: string, mode: SearchMode, split: string | unde
   const requestId = useRef(0)
 
   const trimmed = query.trim()
+  // Text search prefix-matches the word being typed, and reads a trailing space as
+  // "that word is finished". The trim decides whether anything was typed at all, so
+  // the space is put back before the query goes out.
+  const sent = trimmed && /\s$/.test(query) ? `${trimmed} ` : trimmed
   // The mode only ranks a search; while browsing it changes nothing, so it stays
   // out of the key and toggling it does not refetch the same page.
-  const key = trimmed ? `${trimmed}|${mode}|${split}` : `|${split}`
+  const key = trimmed ? `${sent}|${mode}|${split}` : `|${split}`
   const prevKey = useRef(key)
 
   useEffect(() => {
@@ -84,7 +88,7 @@ export function useGallery(query: string, mode: SearchMode, split: string | unde
     // The previous items stay on screen until the new ones land: emptying the
     // list collapses the grid, and the scroll container jumps back to the top.
     const request = trimmed
-      ? api.search({ q: trimmed, mode, split }).then((r) => ({ items: r.items, total: r.total }))
+      ? api.search({ q: sent, mode, split }).then((r) => ({ items: r.items, total: r.total }))
       : api
           .images({ split, offset, limit: PAGE_SIZE })
           .then((page) => ({ items: page.items, total: page.total }))

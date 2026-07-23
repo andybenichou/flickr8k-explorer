@@ -411,6 +411,15 @@ code {
   padding: 48px 0;
 }
 
+/* In a view pane the loader is the only content, so centre it on both axes over
+   the whole pane rather than parking it near the top. The pane is positioned,
+   so this overlays without adding scrollable height. */
+.view-pane > .notice--block {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+}
+
 .spinner {
   width: 15px;
   height: 15px;

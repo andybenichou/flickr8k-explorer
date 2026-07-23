@@ -86,6 +86,12 @@ export default function App() {
   const debouncedQuery = useDebounced(query)
   const gallery = useGallery(debouncedQuery, mode, split || undefined)
 
+  // During the debounce window no request is in flight yet, so the gallery still
+  // reports the settled state of the previous query. Treat that gap as loading:
+  // otherwise a query with no hits flashes "no images match" between keystrokes.
+  const searchPending = query !== debouncedQuery
+  const galleryLoading = gallery.loading || searchPending
+
   // The map dims everything that is not a search hit, which turns a text query
   // into a "where does this concept live in the dataset" question.
   const highlightIds = useMemo(
@@ -161,7 +167,7 @@ export default function App() {
             <ImageGrid
               items={gallery.items}
               selectedId={selectedId}
-              loading={gallery.loading}
+              loading={galleryLoading}
               error={gallery.error}
               hasMore={gallery.hasMore}
               onLoadMore={gallery.loadMore}
