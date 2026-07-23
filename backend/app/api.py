@@ -39,6 +39,20 @@ def get_state(request: Request) -> AppState:
     return request.app.state.app_state
 
 
+class LazyStaticFiles(StaticFiles):
+    """Static files whose directory is allowed to appear after startup.
+
+    Starlette validates the directory on the first request and then keeps raising
+    for the rest of the process. The ingest and the frontend build both create
+    their directory, and either may run after the server started, so validation is
+    skipped: a file that is not there yet is simply a 404, and it starts being
+    served as soon as it exists.
+    """
+
+    async def check_config(self) -> None:
+        return None
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
 
@@ -49,11 +63,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
 
-    # The Vite dev server runs on a different port; in production the frontend is
-    # built and served as static files from the same origin.
+    # The Vite dev server runs on a different port, and picks a free one when the
+    # default is taken, so any localhost port is allowed. In production the frontend
+    # is built and served as static files from the same origin.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
         allow_methods=["GET"],
         allow_headers=["*"],
     )
@@ -64,14 +79,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_routes(app)
 
-    if settings.images_dir.exists():
-        app.mount("/media/images", StaticFiles(directory=settings.images_dir), name="images")
-        app.mount("/media/thumbs", StaticFiles(directory=settings.thumbs_dir), name="thumbs")
+    # Mounted unconditionally: testing for the directory here would freeze a missing
+    # one into a permanent 404 for the lifetime of the process, even long after the
+    # ingest created it.
+    app.mount(
+        "/media/images",
+        LazyStaticFiles(directory=settings.images_dir, check_dir=False),
+        name="images",
+    )
+    app.mount(
+        "/media/thumbs",
+        LazyStaticFiles(directory=settings.thumbs_dir, check_dir=False),
+        name="thumbs",
+    )
 
-    # Serve the built frontend when it exists, so the whole app is one process.
+    # Serve the built frontend, so the whole app is one process.
     dist = settings.data_dir.parent / "frontend" / "dist"
-    if dist.exists():
-        app.mount("/", StaticFiles(directory=dist, html=True), name="frontend")
+    app.mount(
+        "/",
+        LazyStaticFiles(directory=dist, html=True, check_dir=False),
+        name="frontend",
+    )
 
     return app
 
