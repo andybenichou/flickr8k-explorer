@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api'
 import { useAsync } from '../hooks'
 import type { Projection, ProjectionPoint } from '../types'
+import { Spinner } from './Spinner'
 
 interface Props {
   split: string
@@ -182,7 +183,7 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     return best ? { point: best, x: mx, y: my } : null
   }
 
-  if (projection.loading) return <p className="notice">Loading projection…</p>
+  if (projection.loading) return <Spinner block label="Loading projection…" />
   if (projection.error) return <p className="notice notice--error">{projection.error}</p>
   if (points.length === 0)
     return (

@@ -1,6 +1,7 @@
 import { api } from '../api'
 import { useAsync } from '../hooks'
 import type { ImageDetail, SearchResults } from '../types'
+import { Spinner } from './Spinner'
 
 interface Props {
   imageId: string
@@ -30,6 +31,7 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
       </header>
 
       {detail.error && <p className="notice notice--error">{detail.error}</p>}
+      {detail.loading && <Spinner block />}
       {detail.data && (
         <>
           <div className="detail__image">
@@ -88,7 +90,7 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
           {similar.error ? (
             <p className="notice notice--error">{similar.error}</p>
           ) : similar.loading ? (
-            <p className="notice">Loading…</p>
+            <Spinner />
           ) : (
             <div className="detail__similar">
               {similar.data?.items.map((item) => (

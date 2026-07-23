@@ -1,5 +1,6 @@
 import { useOnVisible } from '../hooks'
 import type { ImageSummary } from '../types'
+import { Spinner } from './Spinner'
 
 interface CardProps {
   image: ImageSummary
@@ -52,6 +53,8 @@ export function ImageGrid({
 
   if (error) return <p className="notice notice--error">{error}</p>
   if (!loading && items.length === 0) return <p className="notice">{emptyMessage}</p>
+  // First page still in flight: a centred spinner rather than an empty pane.
+  if (loading && items.length === 0) return <Spinner block />
 
   return (
     <>
@@ -65,7 +68,7 @@ export function ImageGrid({
           />
         ))}
       </div>
-      {loading && <p className="notice">Loading…</p>}
+      {loading && <Spinner label="Loading more…" />}
       <div ref={sentinel} className="sentinel" />
     </>
   )

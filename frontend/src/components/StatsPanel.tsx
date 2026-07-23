@@ -1,6 +1,7 @@
 import { api } from '../api'
 import { useAsync } from '../hooks'
 import type { Bucket, DatasetStats } from '../types'
+import { Spinner } from './Spinner'
 
 function BarChart({ title, hint, buckets }: { title: string; hint?: string; buckets: Bucket[] }) {
   const max = Math.max(1, ...buckets.map((b) => b.count))
@@ -26,7 +27,7 @@ function BarChart({ title, hint, buckets }: { title: string; hint?: string; buck
 export function StatsPanel() {
   const stats = useAsync<DatasetStats>(() => api.stats(), [])
 
-  if (stats.loading) return <p className="notice">Computing statistics…</p>
+  if (stats.loading) return <Spinner block label="Computing statistics…" />
   if (stats.error) return <p className="notice notice--error">{stats.error}</p>
   if (!stats.data) return null
 

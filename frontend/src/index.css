@@ -34,6 +34,14 @@ select {
   color: inherit;
 }
 
+/* One keyboard-focus ring for every interactive control. Mouse clicks don't
+   trigger :focus-visible, so this stays invisible to pointer users. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
 code {
   background: var(--bg-input);
   padding: 1px 5px;
@@ -73,6 +81,18 @@ code {
   font-size: 12px;
 }
 
+.topbar__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.topbar__loading .spinner {
+  width: 11px;
+  height: 11px;
+  border-width: 1.5px;
+}
+
 .segmented {
   display: inline-flex;
   border: 1px solid var(--border);
@@ -92,6 +112,10 @@ code {
 .segmented button:hover:not(:disabled) {
   background: var(--bg-input);
   color: var(--text);
+}
+
+.segmented button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .segmented button.active {
@@ -139,12 +163,25 @@ code {
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   background: none;
   border: 0;
+  border-radius: 5px;
   color: var(--text-dim);
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.searchbar__clear:hover {
+  background: var(--border);
+  color: var(--text);
 }
 
 .searchbar select {
@@ -152,6 +189,12 @@ code {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+
+.searchbar select:hover {
+  border-color: var(--text-dim);
 }
 
 .searchbar__count {
@@ -277,6 +320,35 @@ code {
   color: var(--danger);
 }
 
+.notice--loading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* Centres a standalone loader in its view instead of pinning it to the top-left,
+   used for full-view waits (map, stats, first grid load). */
+.notice--block {
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.spinner {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* --- detail panel ------------------------------------------------------ */
 
 .detail {
@@ -306,12 +378,25 @@ code {
 }
 
 .detail__header button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   background: none;
   border: 0;
+  border-radius: 5px;
   color: var(--text-dim);
   font-size: 20px;
   cursor: pointer;
   line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.detail__header button:hover {
+  background: var(--border);
+  color: var(--text);
 }
 
 .detail__image {
@@ -578,6 +663,11 @@ code {
   border-color: var(--text-dim);
 }
 
+.map__reset:active,
+.map__panel-toggle:active {
+  transform: scale(0.96);
+}
+
 /* Collapse toggle: styled like .map__reset so the panel's two buttons match.
    ProjectionMap renders it inside the panel; collapsing adds --collapsed. */
 .map__panel-toggle {
@@ -793,5 +883,36 @@ code {
   /* Narrower label + value columns leave the bar itself a usable width. */
   .chart li {
     grid-template-columns: 70px 1fr 48px;
+  }
+}
+
+/* --- reduced motion ----------------------------------------------------- */
+
+/* Honour the OS "reduce motion" setting: drop the hover lifts and press scales,
+   and slow the spinner to a gentle step so it still reads as "working" without
+   a continuous spin. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .card:hover {
+    transform: none;
+  }
+
+  .segmented button:active:not(:disabled),
+  .map__reset:active,
+  .map__panel-toggle:active {
+    transform: none;
+  }
+
+  /* Keep the spinner legible as a static ring rather than a frozen partial arc. */
+  .spinner {
+    border-top-color: var(--border);
+    border-right-color: var(--accent);
   }
 }

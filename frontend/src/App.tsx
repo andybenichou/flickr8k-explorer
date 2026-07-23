@@ -111,11 +111,18 @@ export default function App() {
       <header className="topbar">
         <div className="topbar__brand">
           <h1>Flickr8k Explorer</h1>
-          {dataset.data && (
+          {dataset.data ? (
             <span>
               {dataset.data.n_images.toLocaleString()} images · {dataset.data.n_captions.toLocaleString()} captions
               {dataset.data.embedding_model && ` · ${dataset.data.embedding_dim}-d CLIP`}
             </span>
+          ) : (
+            dataset.loading && (
+              <span className="topbar__loading">
+                <span className="spinner" aria-hidden="true" />
+                Loading dataset…
+              </span>
+            )
           )}
         </div>
         <nav className="segmented">
