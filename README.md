@@ -155,7 +155,7 @@ Open <http://localhost:5173>.
 - The API starts in about 2 seconds. It memory-maps the vectors rather than loading them.
 - Browsing, caption search and stats respond in a few milliseconds.
 - **The first semantic search takes 3 to 5 seconds**, because that is when the CLIP text encoder
-  loads. Every search after that is a few milliseconds. This is deliberate: a reviewer who never
+  loads. Every search after that is a few milliseconds. That is on purpose: a reviewer who never
   runs a semantic query never waits for the model.
 
 ### Single-process alternative

@@ -64,7 +64,7 @@ The same principle governs thumbnails: 320 px JPEGs are generated at ingestion, 
 transfers a full-resolution image. This is the difference between a grid that scrolls smoothly and
 one that saturates the connection.
 
-The one deliberate exception is the CLIP text encoder, loaded lazily on the first semantic query.
+The one exception is the CLIP text encoder, loaded lazily on the first semantic query.
 Browsing, caption search and stats therefore work on a cold start, and a reviewer who never runs a
 semantic query never waits for the model.
 
