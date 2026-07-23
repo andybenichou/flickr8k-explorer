@@ -46,6 +46,10 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
   const touch = useRef<{ mode: 'pan' | 'pinch'; x: number; y: number; moved: boolean; distance: number } | null>(null)
   // Timestamp of the last one-finger tap, so a quick second tap resets the view.
   const lastTap = useRef(0)
+  // Keyboard "cursor": the point the arrow keys are currently on. Pointer users
+  // hover; this is the keyboard-and-screen-reader equivalent, drawn as a dashed
+  // ring and announced via the live region below.
+  const [kbFocusId, setKbFocusId] = useState<string | null>(null)
   // Collapsible overlay panel. Default open (the desktop layout has room for it),
   // then collapse on a phone, where it otherwise blankets most of the map. The
   // decision is made in an effect below so it reads the settled viewport rather
@@ -78,7 +82,11 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     if (w > 0 && w <= 640) setPanelOpen(false)
   }, [])
 
-  // Track the container size so the map fills the available space.
+  // Track the container size so the map fills the available space. Keyed on
+  // points.length like the wheel handler below: on first mount the loading
+  // branch returns before the canvas exists, so the observer must (re)attach
+  // once data arrives and the canvas is in the DOM, otherwise the map stays
+  // stuck at its default 800x600 and overflows a narrow (phone) viewport.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas?.parentElement) return
@@ -87,7 +95,7 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     })
     observer.observe(canvas.parentElement)
     return () => observer.disconnect()
-  }, [])
+  }, [points.length])
 
   // Data coordinates -> base canvas pixels (before pan/zoom).
   const toBase = useMemo(() => {
@@ -134,6 +142,20 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
       }
     }
 
+    // Dashed accent ring for the keyboard cursor, under the solid selection ring.
+    const kbPoint = kbFocusId ? points.find((p) => p.id === kbFocusId) : null
+    if (kbPoint) {
+      const { x, y } = toPixel(kbPoint)
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = '#7dd3fc'
+      ctx.lineWidth = 2
+      ctx.setLineDash([3, 3])
+      ctx.beginPath()
+      ctx.arc(x, y, 6, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.setLineDash([])
+    }
+
     // Draw the selected point last so it is never hidden behind the cloud.
     const selected = points.find((p) => p.id === selectedId)
     if (selected) {
@@ -146,7 +168,7 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
       ctx.stroke()
     }
     ctx.globalAlpha = 1
-  }, [points, size, toPixel, focus, selectedId, view])
+  }, [points, size, toPixel, focus, selectedId, view, kbFocusId])
 
   // Wheel zoom, centred on the cursor so the point under it stays put. Attached
   // manually because React's onWheel is passive and cannot preventDefault.
@@ -172,6 +194,71 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
   }, [points.length])
 
   const resetView = () => setView({ k: 1, x: 0, y: 0 })
+
+  /** Zoom by a factor around the canvas centre (keyboard +/- zoom). */
+  const zoomBy = (factor: number) =>
+    setView((v) => {
+      const k = Math.min(20, Math.max(1, v.k * factor))
+      const ratio = k / v.k
+      const cx = size.width / 2
+      const cy = size.height / 2
+      return { k, x: cx - (cx - v.x) * ratio, y: cy - (cy - v.y) * ratio }
+    })
+
+  /**
+   * Move the keyboard cursor to the nearest point in a direction. Works in data
+   * space so it is independent of the current pan/zoom: `along` is the distance
+   * in the pressed direction (must be positive), `off` the perpendicular drift,
+   * penalised so the pick stays roughly on-axis. Dimmed points are skipped, matching
+   * the pointer's nearest().
+   */
+  const stepFocus = (dir: 'left' | 'right' | 'up' | 'down') => {
+    if (points.length === 0) return
+    const from = kbFocusId ? points.find((p) => p.id === kbFocusId) : null
+    if (!from) {
+      // First key press: start on the selected point, else the first one.
+      const start = points.find((p) => p.id === selectedId) ?? points[0]
+      setKbFocusId(start.id)
+      return
+    }
+    let best: ProjectionPoint | null = null
+    let bestCost = Infinity
+    for (const point of points) {
+      if (point.id === from.id) continue
+      if (focus && !focus(point)) continue
+      const dx = point.x - from.x
+      const dy = point.y - from.y
+      let along: number
+      let off: number
+      if (dir === 'right') { along = dx; off = Math.abs(dy) }
+      else if (dir === 'left') { along = -dx; off = Math.abs(dy) }
+      else if (dir === 'up') { along = dy; off = Math.abs(dx) }
+      else { along = -dy; off = Math.abs(dx) }
+      if (along <= 1e-6) continue
+      const cost = along + off * 2.5
+      if (cost < bestCost) {
+        bestCost = cost
+        best = point
+      }
+    }
+    if (best) setKbFocusId(best.id)
+  }
+
+  // Keep the keyboard cursor on screen: if the focused point sits outside the
+  // visible canvas (e.g. after stepping while zoomed in), pan to centre it.
+  useEffect(() => {
+    if (!kbFocusId) return
+    const point = points.find((p) => p.id === kbFocusId)
+    if (!point) return
+    const { x, y } = toPixel(point)
+    const margin = 44
+    if (x < margin || y < margin || x > size.width - margin || y > size.height - margin) {
+      const b = toBase(point)
+      setView((v) => ({ ...v, x: size.width / 2 - b.x * v.k, y: size.height / 2 - b.y * v.k }))
+    }
+    // Only react to the cursor moving; view/size are read as current values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kbFocusId])
 
   /** Nearest point to the cursor, within a small radius. 8k points is a cheap scan. */
   function nearest(clientX: number, clientY: number) {
@@ -208,8 +295,37 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     <div className="map">
       <canvas
         ref={canvasRef}
-        role="img"
-        aria-label={`Scatter plot of ${points.length.toLocaleString()} images projected into 2D by visual similarity, coloured by ${clusters.length} clusters. Point selection is pointer and touch only; use the cluster list to filter.`}
+        // Focusable interactive widget: role="application" so a screen reader
+        // passes the arrow/Enter keys through to our handler instead of eating
+        // them for its own navigation. Live updates go to the region below.
+        role="application"
+        tabIndex={0}
+        aria-label={`Scatter plot of ${points.length.toLocaleString()} images placed by visual similarity in ${clusters.length} colour-coded clusters. Arrow keys move between points, Enter opens the focused image, plus and minus zoom, Home resets the view.`}
+        onFocus={() => {
+          if (!kbFocusId) {
+            const start = points.find((p) => p.id === selectedId) ?? points[0]
+            if (start) setKbFocusId(start.id)
+          }
+        }}
+        onKeyDown={(event) => {
+          switch (event.key) {
+            case 'ArrowRight': event.preventDefault(); stepFocus('right'); break
+            case 'ArrowLeft': event.preventDefault(); stepFocus('left'); break
+            case 'ArrowUp': event.preventDefault(); stepFocus('up'); break
+            case 'ArrowDown': event.preventDefault(); stepFocus('down'); break
+            case 'Enter':
+            case ' ':
+              if (kbFocusId) { event.preventDefault(); onSelect(kbFocusId) }
+              break
+            case 'Home':
+            case '0': event.preventDefault(); resetView(); break
+            case '+':
+            case '=': event.preventDefault(); zoomBy(1.3); break
+            case '-':
+            case '_': event.preventDefault(); zoomBy(1 / 1.3); break
+            case 'Escape': setKbFocusId(null); break
+          }
+        }}
         // touchAction:'none' stops the browser hijacking the gesture for page
         // scroll/zoom, so our own touch handlers own every finger on the canvas.
         style={{ width: size.width, height: size.height, cursor: dragging ? 'grabbing' : 'crosshair', touchAction: 'none' }}
@@ -316,6 +432,13 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
         onDoubleClick={resetView}
       />
 
+      {/* Announces the keyboard cursor to assistive tech (the canvas pixels can't). */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {kbFocusId
+          ? `Focused ${kbFocusId}, ${labelFor(points.find((p) => p.id === kbFocusId)?.cluster ?? null)}. Press Enter to open.`
+          : ''}
+      </div>
+
       {hovered && (
         <div
           className="map__tooltip"
@@ -364,7 +487,8 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
         </p>
         <p className="map__help">
           Scroll to zoom, drag to pan, double-click to reset. Hover a dot for a
-          preview, click to open it. Hover a theme below to isolate it.
+          preview, click to open it. Hover a theme below to isolate it. Or focus
+          the map and use the arrow keys to walk between points, Enter to open.
         </p>
         {searching && (
           <p className="map__help map__help--accent">

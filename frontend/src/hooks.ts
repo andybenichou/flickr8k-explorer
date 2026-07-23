@@ -138,6 +138,21 @@ export function useOnVisible(onVisible: () => void, enabled: boolean) {
   return ref
 }
 
+/** Tracks a CSS media query, re-rendering when it starts or stops matching. */
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(query).matches,
+  )
+  useEffect(() => {
+    const mql = window.matchMedia(query)
+    const onChange = () => setMatches(mql.matches)
+    onChange()
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [query])
+  return matches
+}
+
 /** Debounce a fast-changing value (used to avoid a request per keystroke). */
 export function useDebounced<T>(value: T, delay = 350): T {
   const [debounced, setDebounced] = useState(value)

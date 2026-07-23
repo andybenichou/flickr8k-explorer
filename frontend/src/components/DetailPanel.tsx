@@ -1,8 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { api } from '../api'
-import { useAsync } from '../hooks'
+import { useAsync, useMediaQuery } from '../hooks'
 import type { ImageDetail, SearchResults } from '../types'
 import { Spinner } from './Spinner'
+
+// Tab-cycle order within the panel, used by the mobile focus trap.
+const FOCUSABLE = 'a[href], button:not([disabled]), input, select, [tabindex]:not([tabindex="-1"])'
 
 interface Props {
   imageId: string
@@ -22,6 +25,14 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
     [imageId, semanticAvailable],
   )
 
+  // On a phone the panel is a full-screen overlay (see the max-width:640px rules
+  // in index.css), so it must behave as a modal dialog: trap focus and restore
+  // it on close. On the desktop it is a non-modal sidebar beside the grid, where
+  // a trap would be wrong, so all of this is gated on the overlay breakpoint.
+  const isModal = useMediaQuery('(max-width: 640px)')
+  const panelRef = useRef<HTMLElement>(null)
+  const openerRef = useRef<HTMLElement | null>(null)
+
   // Escape closes the panel. It matters most on a phone, where the panel is a
   // full-screen overlay, but it is a harmless convenience on the desktop too.
   useEffect(() => {
@@ -30,8 +41,59 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  // Remember the element that opened the panel, so focus returns there on close.
+  useEffect(() => {
+    openerRef.current = document.activeElement as HTMLElement | null
+    return () => openerRef.current?.focus?.()
+  }, [])
+
+  // Modal focus trap (mobile overlay only): pull focus in and keep Tab cycling
+  // inside the panel while it is open.
+  useEffect(() => {
+    if (!isModal) return
+    const panel = panelRef.current
+    if (!panel) return
+    const focusables = () =>
+      Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null)
+    ;(focusables()[0] ?? panel).focus()
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return
+      const items = focusables()
+      if (items.length === 0) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    panel.addEventListener('keydown', onKeyDown)
+    return () => panel.removeEventListener('keydown', onKeyDown)
+  }, [isModal])
+
+  // Opening a neighbour swaps the panel's content and can unmount whatever held
+  // focus; pull focus back to the close button so the trap can't leak to <body>.
+  useEffect(() => {
+    if (!isModal) return
+    const panel = panelRef.current
+    if (panel && !panel.contains(document.activeElement)) {
+      panel.querySelector<HTMLButtonElement>('.detail__header button')?.focus()
+    }
+  }, [imageId, isModal])
+
   return (
-    <aside className="detail">
+    <aside
+      className="detail"
+      ref={panelRef}
+      tabIndex={-1}
+      role={isModal ? 'dialog' : undefined}
+      aria-modal={isModal || undefined}
+      aria-label={`Image ${imageId} details`}
+    >
       <header className="detail__header">
         <h2>{imageId}</h2>
         <button onClick={onClose} aria-label="Close panel">
