@@ -61,6 +61,12 @@ def ingested(settings: Settings) -> Settings:
             # One-hot vectors: nearest neighbours are then exactly predictable.
             vectors[row_index, row_index] = 1.0
 
+        # Two labelled clusters, matching the `row_index % 2` assignment above.
+        conn.executemany(
+            "INSERT INTO clusters(id, label, size) VALUES (?, ?, ?)",
+            [(0, "even cluster", 2), (1, "odd cluster", 2)],
+        )
+
         set_meta(conn, "dataset", "test/flickr8k")
         set_meta(conn, "embedding_model", "test-embedder")
         set_meta(conn, "embedding_dim", str(DIM))

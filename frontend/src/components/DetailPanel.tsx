@@ -32,9 +32,12 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
       {detail.error && <p className="notice notice--error">{detail.error}</p>}
       {detail.data && (
         <>
-          <a href={detail.data.image_url} target="_blank" rel="noreferrer" className="detail__image">
+          <div className="detail__image">
             <img src={detail.data.image_url} alt={detail.data.captions[0]?.text ?? imageId} />
-          </a>
+            <a href={detail.data.image_url} target="_blank" rel="noreferrer" className="detail__open">
+              Open original ↗
+            </a>
+          </div>
 
           <dl className="detail__meta">
             <div>

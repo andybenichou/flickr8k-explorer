@@ -163,8 +163,26 @@ code {
 .workspace__main {
   flex: 1;
   min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Each view owns its own scroll container so switching tabs preserves the grid's
+   scroll position and the map's zoom, instead of remounting from scratch. */
+.view-pane {
+  position: absolute;
+  inset: 0;
   overflow-y: auto;
   padding: 16px 20px 40px;
+}
+
+.view-pane--map {
+  overflow: hidden;
+  padding: 0;
+}
+
+.view-pane[hidden] {
+  display: none;
 }
 
 .grid {
@@ -285,11 +303,33 @@ code {
   line-height: 1;
 }
 
+.detail__image {
+  position: relative;
+  margin-top: 12px;
+}
+
 .detail__image img {
   width: 100%;
   border-radius: var(--radius);
-  margin-top: 12px;
   display: block;
+}
+
+.detail__open {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text);
+  background: rgba(15, 17, 21, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  text-decoration: none;
+  backdrop-filter: blur(3px);
+}
+
+.detail__open:hover {
+  border-color: var(--text-dim);
 }
 
 .detail h3 {
@@ -506,6 +546,22 @@ code {
   font-variant-numeric: tabular-nums;
   font-size: 10.5px;
   color: var(--text-dim);
+}
+
+.map__reset {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 4px 9px;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.map__reset:hover {
+  border-color: var(--text-dim);
 }
 
 /* --- stats -------------------------------------------------------------- */

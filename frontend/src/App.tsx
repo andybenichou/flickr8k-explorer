@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
 import { DetailPanel } from './components/DetailPanel'
 import { ImageGrid } from './components/ImageGrid'
@@ -14,12 +14,59 @@ const VIEWS: { key: View; label: string; hint: string }[] = [
   { key: 'stats', label: 'Stats', hint: 'Dataset composition' },
 ]
 
+/** Read the initial UI state from the URL, so a reload or a shared link lands
+ *  exactly where the user left off (which view, query, filter, open image). */
+function stateFromUrl() {
+  const p = new URLSearchParams(window.location.search)
+  return {
+    view: (p.get('view') as View) || 'grid',
+    query: p.get('q') ?? '',
+    mode: (p.get('mode') as SearchMode) || 'semantic',
+    split: p.get('split') ?? '',
+    selectedId: p.get('sel'),
+  }
+}
+
 export default function App() {
-  const [view, setView] = useState<View>('grid')
-  const [query, setQuery] = useState('')
-  const [mode, setMode] = useState<SearchMode>('semantic')
-  const [split, setSplit] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const initial = useRef(stateFromUrl()).current
+  const [view, setView] = useState<View>(initial.view)
+  const [query, setQuery] = useState(initial.query)
+  const [mode, setMode] = useState<SearchMode>(initial.mode)
+  const [split, setSplit] = useState(initial.split)
+  const [selectedId, setSelectedId] = useState<string | null>(initial.selectedId)
+
+  // Mount a view the first time it is opened, then keep it mounted (hidden) so
+  // its scroll position and the map's zoom survive tab switches.
+  const [visited, setVisited] = useState<Set<View>>(() => new Set([initial.view]))
+  useEffect(() => {
+    setVisited((prev) => (prev.has(view) ? prev : new Set(prev).add(view)))
+  }, [view])
+
+  // Mirror UI state into the URL (replaceState, so it does not spam history).
+  useEffect(() => {
+    const p = new URLSearchParams()
+    if (view !== 'grid') p.set('view', view)
+    if (query) p.set('q', query)
+    if (mode !== 'semantic') p.set('mode', mode)
+    if (split) p.set('split', split)
+    if (selectedId) p.set('sel', selectedId)
+    const qs = p.toString()
+    window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname)
+  }, [view, query, mode, split, selectedId])
+
+  // Browser back/forward re-applies whatever state the URL encodes.
+  useEffect(() => {
+    const onPop = () => {
+      const s = stateFromUrl()
+      setView(s.view)
+      setQuery(s.query)
+      setMode(s.mode)
+      setSplit(s.split)
+      setSelectedId(s.selectedId)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   const dataset = useAsync<DatasetInfo>(() => api.dataset(), [])
   const semanticAvailable = Boolean(dataset.data?.embedding_model)
@@ -91,7 +138,7 @@ export default function App() {
 
       <div className="workspace">
         <main className="workspace__main">
-          {view === 'grid' && (
+          <div className="view-pane" hidden={view !== 'grid'}>
             <ImageGrid
               items={gallery.items}
               selectedId={selectedId}
@@ -101,16 +148,22 @@ export default function App() {
               onLoadMore={gallery.loadMore}
               onSelect={setSelectedId}
             />
+          </div>
+          {visited.has('map') && (
+            <div className="view-pane view-pane--map" hidden={view !== 'map'}>
+              <ProjectionMap
+                split={split}
+                highlightIds={highlightIds}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+              />
+            </div>
           )}
-          {view === 'map' && (
-            <ProjectionMap
-              split={split}
-              highlightIds={highlightIds}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-            />
+          {visited.has('stats') && (
+            <div className="view-pane" hidden={view !== 'stats'}>
+              <StatsPanel />
+            </div>
           )}
-          {view === 'stats' && <StatsPanel />}
         </main>
 
         {selectedId && (

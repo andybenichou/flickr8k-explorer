@@ -139,7 +139,9 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     }
     canvas.addEventListener('wheel', onWheel, { passive: false })
     return () => canvas.removeEventListener('wheel', onWheel)
-  }, [])
+    // Re-run once points arrive: on the first mount the canvas does not exist yet
+    // (the loading branch returns early), so the listener must attach after data.
+  }, [points.length])
 
   const resetView = () => setView({ k: 1, x: 0, y: 0 })
 
