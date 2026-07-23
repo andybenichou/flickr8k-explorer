@@ -95,7 +95,7 @@ export default function App() {
 
   if (dataset.error) {
     return (
-      <div className="boot-error">
+      <div className="boot-error" role="alert">
         <h1>Backend unavailable</h1>
         <p>{dataset.error}</p>
         <p>
@@ -118,7 +118,7 @@ export default function App() {
             </span>
           ) : (
             dataset.loading && (
-              <span className="topbar__loading">
+              <span className="topbar__loading" role="status" aria-live="polite">
                 <span className="spinner" aria-hidden="true" />
                 Loading dataset…
               </span>
@@ -131,6 +131,7 @@ export default function App() {
               key={item.key}
               className={view === item.key ? 'active' : ''}
               onClick={() => setView(item.key)}
+              aria-current={view === item.key ? 'page' : undefined}
               title={item.hint}
             >
               {item.label}

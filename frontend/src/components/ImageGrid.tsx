@@ -15,7 +15,18 @@ function ImageCard({ image, selected, onSelect }: CardProps) {
       onClick={() => onSelect(image.id)}
       title={image.caption}
     >
-      <img src={image.thumb_url} alt={image.caption} loading="lazy" decoding="async" />
+      <img
+        src={image.thumb_url}
+        alt={image.caption}
+        loading="lazy"
+        decoding="async"
+        onLoad={(event) => event.currentTarget.classList.add('is-loaded')}
+        // Cached thumbnails can finish decoding before React attaches onLoad, so
+        // mark those as loaded on mount to avoid an image stuck at opacity 0.
+        ref={(el) => {
+          if (el?.complete) el.classList.add('is-loaded')
+        }}
+      />
       <span className="card__caption">{image.caption}</span>
       <span className="card__meta">
         <span className={`tag tag--${image.split}`}>{image.split}</span>
@@ -51,7 +62,7 @@ export function ImageGrid({
   // library and its responsive-column complexity.
   const sentinel = useOnVisible(onLoadMore, hasMore && !loading)
 
-  if (error) return <p className="notice notice--error">{error}</p>
+  if (error) return <p className="notice notice--error" role="alert">{error}</p>
   if (!loading && items.length === 0) return <p className="notice">{emptyMessage}</p>
   // First page still in flight: a centred spinner rather than an empty pane.
   if (loading && items.length === 0) return <Spinner block />

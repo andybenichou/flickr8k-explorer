@@ -67,6 +67,11 @@ export function useGallery(query: string, mode: SearchMode, split: string | unde
       setItems([])
       setTotal(0)
       if (offset !== 0) {
+        // Enter the loading state now: resetting the offset re-runs this effect,
+        // but until it does the render has empty items and stale loading:false,
+        // which would briefly flash the "no results" empty state.
+        setLoading(true)
+        setError(null)
         setOffset(0)
         return
       }

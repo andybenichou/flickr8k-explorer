@@ -28,8 +28,8 @@ export function StatsPanel() {
   const stats = useAsync<DatasetStats>(() => api.stats(), [])
 
   if (stats.loading) return <Spinner block label="Computing statistics…" />
-  if (stats.error) return <p className="notice notice--error">{stats.error}</p>
-  if (!stats.data) return null
+  if (stats.error) return <p className="notice notice--error" role="alert">{stats.error}</p>
+  if (!stats.data) return <p className="notice">No statistics available.</p>
 
   const s = stats.data
   return (

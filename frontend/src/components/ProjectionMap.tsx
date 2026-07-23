@@ -46,7 +46,10 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
   const touch = useRef<{ mode: 'pan' | 'pinch'; x: number; y: number; moved: boolean; distance: number } | null>(null)
   // Timestamp of the last one-finger tap, so a quick second tap resets the view.
   const lastTap = useRef(0)
-  // Collapsible overlay panel: on a phone it otherwise covers most of the map.
+  // Collapsible overlay panel. Default open (the desktop layout has room for it),
+  // then collapse on a phone, where it otherwise blankets most of the map. The
+  // decision is made in an effect below so it reads the settled viewport rather
+  // than a mount-time width that can be stale under this lazy-mounted view.
   const [panelOpen, setPanelOpen] = useState(true)
 
   const projection = useAsync<Projection>(() => api.projection(split || undefined), [split])
@@ -65,6 +68,15 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     if (activeCluster != null) return (p: ProjectionPoint) => p.cluster === activeCluster
     return null
   }, [searching, highlightIds, activeCluster])
+
+  // Collapse the panel by default on a phone, where it otherwise blankets the
+  // map. Only collapse for a definite narrow width: an unsettled 0 (this view
+  // mounts lazily, before layout resolves) falls through to the open default,
+  // which is the right choice for the desktop layout.
+  useEffect(() => {
+    const w = window.innerWidth
+    if (w > 0 && w <= 640) setPanelOpen(false)
+  }, [])
 
   // Track the container size so the map fills the available space.
   useEffect(() => {
@@ -184,7 +196,7 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
   }
 
   if (projection.loading) return <Spinner block label="Loading projection…" />
-  if (projection.error) return <p className="notice notice--error">{projection.error}</p>
+  if (projection.error) return <p className="notice notice--error" role="alert">{projection.error}</p>
   if (points.length === 0)
     return (
       <p className="notice">
@@ -196,6 +208,8 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
     <div className="map">
       <canvas
         ref={canvasRef}
+        role="img"
+        aria-label={`Scatter plot of ${points.length.toLocaleString()} images projected into 2D by visual similarity, coloured by ${clusters.length} clusters. Point selection is pointer and touch only; use the cluster list to filter.`}
         // touchAction:'none' stops the browser hijacking the gesture for page
         // scroll/zoom, so our own touch handlers own every finger on the canvas.
         style={{ width: size.width, height: size.height, cursor: dragging ? 'grabbing' : 'crosshair', touchAction: 'none' }}
@@ -316,7 +330,9 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
             src={`/media/thumbs/${hovered.point.id}.jpg`}
             alt={hovered.point.id}
             onError={(e) => {
-              e.currentTarget.style.visibility = 'hidden'
+              // Collapse (not just hide) so the tooltip shrinks cleanly instead
+              // of leaving a blank gap above the label.
+              e.currentTarget.style.display = 'none'
             }}
           />
           <span className="map__tooltip-label">
@@ -372,10 +388,20 @@ export function ProjectionMap({ split, highlightIds, selectedId, onSelect }: Pro
                 'map__legend-row' +
                 (activeCluster === cluster.id ? ' map__legend-row--active' : '')
               }
-              style={{ cursor: 'pointer' }}
+              // Not a native button (it lives in a <ul>), so wire up the button
+              // role, focusability and Enter/Space so it is keyboard-operable.
+              role="button"
+              tabIndex={0}
+              aria-pressed={activeCluster === cluster.id}
               onMouseEnter={() => setActiveCluster(cluster.id)}
               // Tap to isolate on touch (no hover); tap again to clear.
               onClick={() => setActiveCluster((c) => (c === cluster.id ? null : cluster.id))}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  setActiveCluster((c) => (c === cluster.id ? null : cluster.id))
+                }
+              }}
             >
               <span className="map__swatch" style={{ background: colorFor(cluster.id) }} />
               <span className="map__legend-name">{cluster.label}</span>

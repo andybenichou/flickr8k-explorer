@@ -42,7 +42,7 @@ export function SearchBar({
           aria-label="Search the dataset"
         />
         {query && (
-          <button className="searchbar__clear" onClick={() => onQueryChange('')} aria-label="Clear">
+          <button className="searchbar__clear" onClick={() => onQueryChange('')} aria-label="Clear search">
             ×
           </button>
         )}
@@ -53,6 +53,7 @@ export function SearchBar({
           className={mode === 'semantic' ? 'active' : ''}
           onClick={() => onModeChange('semantic')}
           disabled={!semanticAvailable}
+          aria-pressed={mode === 'semantic'}
           title={
             semanticAvailable
               ? 'CLIP embedding similarity: finds images by meaning, not words'
@@ -64,6 +65,7 @@ export function SearchBar({
         <button
           className={mode === 'text' ? 'active' : ''}
           onClick={() => onModeChange('text')}
+          aria-pressed={mode === 'text'}
           title="BM25 full-text match over the five captions"
         >
           Caption text

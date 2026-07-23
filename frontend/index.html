@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Flickr8k Explorer</title>
+    <!-- Match the app's dark theme before the CSS bundle loads, so a slow first
+         load shows a dark canvas instead of a white flash. -->
+    <style>
+      html { background: #0f1115; color-scheme: dark; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

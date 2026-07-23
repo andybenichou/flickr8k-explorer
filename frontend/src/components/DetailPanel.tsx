@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { api } from '../api'
 import { useAsync } from '../hooks'
 import type { ImageDetail, SearchResults } from '../types'
@@ -21,6 +22,14 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
     [imageId, semanticAvailable],
   )
 
+  // Escape closes the panel. It matters most on a phone, where the panel is a
+  // full-screen overlay, but it is a harmless convenience on the desktop too.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <aside className="detail">
       <header className="detail__header">
@@ -30,12 +39,21 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
         </button>
       </header>
 
-      {detail.error && <p className="notice notice--error">{detail.error}</p>}
+      {detail.error && <p className="notice notice--error" role="alert">{detail.error}</p>}
       {detail.loading && <Spinner block />}
       {detail.data && (
         <>
           <div className="detail__image">
-            <img src={detail.data.image_url} alt={detail.data.captions[0]?.text ?? imageId} />
+            <img
+              src={detail.data.image_url}
+              alt={detail.data.captions[0]?.text ?? imageId}
+              // Reserve the frame from the known ratio so the panel doesn't jump
+              // when the full-res original paints.
+              style={{ aspectRatio: String(detail.data.aspect_ratio) }}
+              onError={(event) => {
+                event.currentTarget.style.visibility = 'hidden'
+              }}
+            />
             <a href={detail.data.image_url} target="_blank" rel="noreferrer" className="detail__open">
               Open original ↗
             </a>
@@ -88,14 +106,21 @@ export function DetailPanel({ imageId, onSelect, onClose, semanticAvailable }: P
             over-represented scenes.
           </p>
           {similar.error ? (
-            <p className="notice notice--error">{similar.error}</p>
+            <p className="notice notice--error" role="alert">{similar.error}</p>
           ) : similar.loading ? (
             <Spinner />
           ) : (
             <div className="detail__similar">
               {similar.data?.items.map((item) => (
                 <button key={item.id} onClick={() => onSelect(item.id)} title={item.caption}>
-                  <img src={item.thumb_url} alt={item.caption} loading="lazy" />
+                  <img
+                    src={item.thumb_url}
+                    alt={item.caption}
+                    loading="lazy"
+                    onError={(event) => {
+                      event.currentTarget.style.visibility = 'hidden'
+                    }}
+                  />
                   <span>{item.score?.toFixed(3)}</span>
                 </button>
               ))}
