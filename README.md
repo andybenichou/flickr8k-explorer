@@ -10,9 +10,11 @@ Everything runs on one machine. No cloud services, no managed database, no paid 
 
 ## TL;DR for the reviewer
 
-Four commands. About 12 minutes total, most of it downloads that only happen once.
+Five commands. About 12 minutes total, most of it downloads that only happen once.
 
 ```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # once, if you do not have uv (see Requirements)
+git clone https://github.com/andybenichou/flickr8k-explorer.git && cd flickr8k-explorer
 uv sync --extra dev                     # ~3 min   (downloads PyTorch)
 npm --prefix frontend install           # ~15 s
 uv run python -m backend.ingest         # ~7 min   (one time; see the breakdown below)
@@ -88,12 +90,14 @@ rebuilds everything from the caches in about 1.5 minutes.
 ## Setup
 
 ```bash
-git clone <this-repo> && cd Mobileye
+curl -LsSf https://astral.sh/uv/install.sh | sh   # once, if you do not have uv (see Requirements)
+git clone https://github.com/andybenichou/flickr8k-explorer.git && cd flickr8k-explorer
 uv sync --extra dev
 npm --prefix frontend install
 ```
 
-`uv sync` creates `.venv` and installs the pinned dependencies from `uv.lock`. The slow part is
+uv is a single self-contained binary, not a pip package, so it has to be installed once before the
+other commands. On macOS you can also use `brew install uv`. `uv sync` creates `.venv` and installs the pinned dependencies from `uv.lock`. The slow part is
 PyTorch, roughly 3 minutes on a normal connection.
 
 ---
@@ -154,9 +158,9 @@ Open <http://localhost:5173>.
 
 - The API starts in about 2 seconds. It memory-maps the vectors rather than loading them.
 - Browsing, caption search and stats respond in a few milliseconds.
-- **The first semantic search takes 3 to 5 seconds**, because that is when the CLIP text encoder
-  loads. Every search after that is a few milliseconds. That is on purpose: a reviewer who never
-  runs a semantic query never waits for the model.
+- **The first semantic search takes 10 to 15 seconds**, because that is when torch is imported and
+  the CLIP text encoder loads. Every search after that is a few milliseconds. That is on purpose: a
+  reviewer who never runs a semantic query never waits for the model.
 
 ### Single-process alternative
 
